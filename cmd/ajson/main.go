@@ -9,10 +9,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spyzhov/ajson"
+	"github.com/rohit-nayak-ps/ajson"
 )
 
-var version = "v0.7.1"
+var version = "v0.7.4"
 
 func usage() {
 	text := ``
@@ -63,7 +63,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("error parsing JSON: %s", err)
 	}
-
 	var nodes []*ajson.Node
 	nodes, err = root.JSONPath(path)
 	result = ajson.ArrayNode("", nodes)

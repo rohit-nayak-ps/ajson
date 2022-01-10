@@ -70,6 +70,18 @@ func TestMarshal_Primitive(t *testing.T) {
 			node: NumericNode("", 100500),
 		},
 		{
+			name: "1234567890",
+			node: IntegerNode("", 1234567890),
+		},
+		{
+			name: "18446744073709551615",
+			node: UnsignedIntegerNode("", 18446744073709551615),
+		},
+		{
+			name: "-1",
+			node: IntegerNode("", -1),
+		},
+		{
 			name: "100.5",
 			node: NumericNode("", 100.5),
 		},

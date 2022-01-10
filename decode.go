@@ -1,7 +1,7 @@
 package ajson
 
 import (
-	. "github.com/spyzhov/ajson/internal"
+	. "github.com/rohit-nayak-ps/ajson/internal"
 )
 
 // List of action codes.

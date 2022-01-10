@@ -26,6 +26,7 @@ func TestNode_Value_Simple(t *testing.T) {
 		{name: "false", bytes: []byte("false"), _type: Bool, expected: false},
 		{name: "e1", bytes: []byte("e1"), _type: Numeric, error: true},
 		{name: "string error", bytes: []byte("\"foo\nbar\""), _type: String, error: true},
+		{name: "1", bytes: []byte("1"), _type: Integer, expected: int64(1)},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1924,6 +1925,30 @@ func TestNode_Value(t *testing.T) {
 		{
 			name:      "numeric error",
 			node:      valueNode(nil, "", Numeric, false),
+			wantValue: nil,
+			wantErr:   true,
+		},
+		{
+			name:      "integer",
+			node:      IntegerNode("", 9223372036854775807),
+			wantValue: int64(9223372036854775807),
+			wantErr:   false,
+		},
+		{
+			name:      "integer error",
+			node:      valueNode(nil, "", Integer, "a"),
+			wantValue: nil,
+			wantErr:   true,
+		},
+		{
+			name:      "unsigned integer",
+			node:      UnsignedIntegerNode("", 18446744073709551615),
+			wantValue: uint64(18446744073709551615),
+			wantErr:   false,
+		},
+		{
+			name:      "unsigned integer error",
+			node:      valueNode(nil, "", UnsignedInteger, false),
 			wantValue: nil,
 			wantErr:   true,
 		},
