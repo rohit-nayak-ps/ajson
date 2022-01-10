@@ -17,6 +17,7 @@ import (
 // 		Bool
 // 		Array
 // 		Object
+//      Integral
 // 	)
 //
 // Every type has its own methods to be called.
@@ -44,6 +45,7 @@ type NodeType int32
 // 	Bool    = bool
 // 	Array   = []*Node
 // 	Object  = map[string]*Node
+//  Integral = int64
 //
 const (
 	// Null is reflection of nil.(interface{})
@@ -58,6 +60,8 @@ const (
 	Array
 	// Object is reflection of map[string]*Node
 	Object
+	// Integral is reflection of int64
+	Integral
 )
 
 // NullNode is constructor for Node with Null value
@@ -140,6 +144,17 @@ func ObjectNode(key string, value map[string]*Node) (current *Node) {
 	} else {
 		current.children = make(map[string]*Node)
 	}
+	return
+}
+
+// IntegralNode is constructor for Node with a Integral value
+func IntegralNode(key string, value int64) (current *Node) {
+	current = &Node{
+		_type: Integral,
+		key:   &key,
+		dirty: true,
+	}
+	current.value.Store(value)
 	return
 }
 
@@ -321,6 +336,15 @@ func (n *Node) IsBool() bool {
 	return n._type == Bool
 }
 
+// IsIntegral returns true if current node is Integral
+func (n *Node) IsIntegral() bool {
+	if n == nil {
+		return false
+	}
+	return n._type == Integral
+}
+
+
 // Value is calculating and returns a value of current node.
 //
 // It returns nil, if current node type is Null.
@@ -355,6 +379,8 @@ func (n *Node) Value() (value interface{}, err error) {
 		return n.GetArray()
 	case Object:
 		return n.GetObject()
+	case Integral:
+		return n.GetIntegral()
 	}
 	return nil, errorType()
 }
@@ -398,6 +424,12 @@ func (n *Node) getValue() (value interface{}, err error) {
 				result[key] = child
 			}
 			value = result
+			n.value.Store(value)
+		case Integral:
+			value, err = strconv.ParseInt(string(n.Source()), 10, 64)
+			if err != nil {
+				return
+			}
 			n.value.Store(value)
 		}
 	}
@@ -510,6 +542,26 @@ func (n *Node) GetObject() (value map[string]*Node, err error) {
 	return value, nil
 }
 
+// GetIntegral returns int64, if current type is Integral, else: WrongType error
+func (n *Node) GetIntegral() (value int64, err error) {
+	if n == nil {
+		return 0, errorUnparsed()
+	}
+	if n._type != Integral {
+		return value, errorType()
+	}
+	iValue, err := n.getValue()
+	if err != nil {
+		return 0, err
+	}
+	value, ok := iValue.(int64)
+	if !ok {
+		return value, errorType()
+	}
+	return value, nil
+}
+
+
 // MustNull returns nil, if current type is Null, else: panic if error happened
 func (n *Node) MustNull() (value interface{}) {
 	value, err := n.GetNull()
@@ -564,6 +616,17 @@ func (n *Node) MustObject() (value map[string]*Node) {
 	return
 }
 
+
+// MustIntegral returns float64, if current type is Integral, else: panic if error happened
+func (n *Node) MustIntegral() (value int64) {
+	value, err := n.GetIntegral()
+	if err != nil {
+		panic(err)
+	}
+	return
+}
+
+
 // Unpack will produce current node to it's interface, recursively with all underlying nodes (in contrast to Node.Value).
 func (n *Node) Unpack() (value interface{}, err error) {
 	if n == nil {
@@ -606,6 +669,11 @@ func (n *Node) Unpack() (value interface{}, err error) {
 			}
 		}
 		value = result
+	case Integral:
+		value, err = n.Value()
+		if _, ok := value.(int64); !ok {
+			return nil, errorType()
+		}
 	}
 	return
 }

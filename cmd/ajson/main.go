@@ -63,7 +63,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("error parsing JSON: %s", err)
 	}
-
 	var nodes []*ajson.Node
 	nodes, err = root.JSONPath(path)
 	result = ajson.ArrayNode("", nodes)
