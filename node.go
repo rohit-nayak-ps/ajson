@@ -17,7 +17,8 @@ import (
 // 		Bool
 // 		Array
 // 		Object
-//      Integral
+//      Integer
+//      UnsignedInteger
 // 	)
 //
 // Every type has its own methods to be called.
@@ -45,7 +46,8 @@ type NodeType int32
 // 	Bool    = bool
 // 	Array   = []*Node
 // 	Object  = map[string]*Node
-//  Integral = int64
+//  Integer = int64
+//  UnsignedInteger = uint64
 //
 const (
 	// Null is reflection of nil.(interface{})
@@ -60,8 +62,10 @@ const (
 	Array
 	// Object is reflection of map[string]*Node
 	Object
-	// Integral is reflection of int64
-	Integral
+	// Integer is reflection of int64
+	Integer
+	// UnsignedInteger is reflection of uint64
+	UnsignedInteger
 )
 
 // NullNode is constructor for Node with Null value
@@ -147,10 +151,21 @@ func ObjectNode(key string, value map[string]*Node) (current *Node) {
 	return
 }
 
-// IntegralNode is constructor for Node with a Integral value
-func IntegralNode(key string, value int64) (current *Node) {
+// IntegerNode is constructor for Node with an Integer value
+func IntegerNode(key string, value int64) (current *Node) {
 	current = &Node{
-		_type: Integral,
+		_type: Integer,
+		key:   &key,
+		dirty: true,
+	}
+	current.value.Store(value)
+	return
+}
+
+// UnsignedIntegerNode is constructor for Node with an UnsignedInteger value
+func UnsignedIntegerNode(key string, value uint64) (current *Node) {
+	current = &Node{
+		_type: UnsignedInteger,
 		key:   &key,
 		dirty: true,
 	}
@@ -336,20 +351,31 @@ func (n *Node) IsBool() bool {
 	return n._type == Bool
 }
 
-// IsIntegral returns true if current node is Integral
-func (n *Node) IsIntegral() bool {
+// IsInteger returns true if current node is Integer
+func (n *Node) IsInteger() bool {
 	if n == nil {
 		return false
 	}
-	return n._type == Integral
+	return n._type == Integer
 }
 
+// IsUnsignedInteger returns true if current node is Integer
+func (n *Node) IsUnsignedInteger() bool {
+	if n == nil {
+		return false
+	}
+	return n._type == UnsignedInteger
+}
 
 // Value is calculating and returns a value of current node.
 //
 // It returns nil, if current node type is Null.
 //
 // It returns float64, if current node type is Numeric.
+//
+// It returns int64, if current node type is Integer.
+//
+// It returns uint64, if current node type is UnsignedInteger.
 //
 // It returns string, if current node type is String.
 //
@@ -379,8 +405,10 @@ func (n *Node) Value() (value interface{}, err error) {
 		return n.GetArray()
 	case Object:
 		return n.GetObject()
-	case Integral:
-		return n.GetIntegral()
+	case Integer:
+		return n.GetInteger()
+	case UnsignedInteger:
+		return n.GetUnsignedInteger()
 	}
 	return nil, errorType()
 }
@@ -425,8 +453,14 @@ func (n *Node) getValue() (value interface{}, err error) {
 			}
 			value = result
 			n.value.Store(value)
-		case Integral:
+		case Integer:
 			value, err = strconv.ParseInt(string(n.Source()), 10, 64)
+			if err != nil {
+				return
+			}
+			n.value.Store(value)
+		case UnsignedInteger:
+			value, err = strconv.ParseUint(string(n.Source()), 10, 64)
 			if err != nil {
 				return
 			}
@@ -542,12 +576,12 @@ func (n *Node) GetObject() (value map[string]*Node, err error) {
 	return value, nil
 }
 
-// GetIntegral returns int64, if current type is Integral, else: WrongType error
-func (n *Node) GetIntegral() (value int64, err error) {
+// GetInteger returns int64, if current type is Integer, else: WrongType error
+func (n *Node) GetInteger() (value int64, err error) {
 	if n == nil {
 		return 0, errorUnparsed()
 	}
-	if n._type != Integral {
+	if n._type != Integer {
 		return value, errorType()
 	}
 	iValue, err := n.getValue()
@@ -561,6 +595,24 @@ func (n *Node) GetIntegral() (value int64, err error) {
 	return value, nil
 }
 
+// GetUnsignedInteger returns int64, if current type is UnsignedInteger, else: WrongType error
+func (n *Node) GetUnsignedInteger() (value uint64, err error) {
+	if n == nil {
+		return 0, errorUnparsed()
+	}
+	if n._type != UnsignedInteger {
+		return value, errorType()
+	}
+	uValue, err := n.getValue()
+	if err != nil {
+		return 0, err
+	}
+	value, ok := uValue.(uint64)
+	if !ok {
+		return value, errorType()
+	}
+	return value, nil
+}
 
 // MustNull returns nil, if current type is Null, else: panic if error happened
 func (n *Node) MustNull() (value interface{}) {
@@ -616,16 +668,23 @@ func (n *Node) MustObject() (value map[string]*Node) {
 	return
 }
 
-
-// MustIntegral returns float64, if current type is Integral, else: panic if error happened
-func (n *Node) MustIntegral() (value int64) {
-	value, err := n.GetIntegral()
+// MustInteger returns int64, if current type is Integer, else: panic if error happened
+func (n *Node) MustInteger() (value int64) {
+	value, err := n.GetInteger()
 	if err != nil {
 		panic(err)
 	}
 	return
 }
 
+// MustUnsignedInteger returns uint64, if current type is UnsignedInteger, else: panic if error happened
+func (n *Node) MustUnsignedInteger() (value uint64) {
+	value, err := n.GetUnsignedInteger()
+	if err != nil {
+		panic(err)
+	}
+	return
+}
 
 // Unpack will produce current node to it's interface, recursively with all underlying nodes (in contrast to Node.Value).
 func (n *Node) Unpack() (value interface{}, err error) {
@@ -669,9 +728,14 @@ func (n *Node) Unpack() (value interface{}, err error) {
 			}
 		}
 		value = result
-	case Integral:
+	case Integer:
 		value, err = n.Value()
 		if _, ok := value.(int64); !ok {
+			return nil, errorType()
+		}
+	case UnsignedInteger:
+		value, err = n.Value()
+		if _, ok := value.(uint64); !ok {
 			return nil, errorType()
 		}
 	}
@@ -773,7 +837,7 @@ func (n *Node) Eq(node *Node) (result bool, err error) {
 				return false, err
 			}
 			result = lnum == rnum
-		case Numeric:
+		case Numeric, Integer, UnsignedInteger:
 			lnum, rnum, err := _floats(n, node)
 			if err != nil {
 				return false, err
@@ -844,7 +908,7 @@ func (n *Node) Le(node *Node) (result bool, err error) {
 	}
 	if n.Type() == node.Type() {
 		switch n.Type() {
-		case Numeric:
+		case Numeric, Integer, UnsignedInteger:
 			lnum, rnum, err := _floats(n, node)
 			if err != nil {
 				return false, err
@@ -870,7 +934,7 @@ func (n *Node) Leq(node *Node) (result bool, err error) {
 	}
 	if n.Type() == node.Type() {
 		switch n.Type() {
-		case Numeric:
+		case Numeric, Integer, UnsignedInteger:
 			lnum, rnum, err := _floats(n, node)
 			if err != nil {
 				return false, err
@@ -896,7 +960,7 @@ func (n *Node) Ge(node *Node) (result bool, err error) {
 	}
 	if n.Type() == node.Type() {
 		switch n.Type() {
-		case Numeric:
+		case Numeric, Integer, UnsignedInteger:
 			lnum, rnum, err := _floats(n, node)
 			if err != nil {
 				return false, err
@@ -922,7 +986,7 @@ func (n *Node) Geq(node *Node) (result bool, err error) {
 	}
 	if n.Type() == node.Type() {
 		switch n.Type() {
-		case Numeric:
+		case Numeric, Integer, UnsignedInteger:
 			lnum, rnum, err := _floats(n, node)
 			if err != nil {
 				return false, err

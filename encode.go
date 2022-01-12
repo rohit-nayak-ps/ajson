@@ -13,6 +13,7 @@ func Marshal(node *Node) (result []byte, err error) {
 		nValue float64
 		oValue []byte
 		iValue int64
+		uValue uint64
 	)
 
 	if node == nil {
@@ -27,12 +28,18 @@ func Marshal(node *Node) (result []byte, err error) {
 				return nil, err
 			}
 			result = append(result, strconv.FormatFloat(nValue, 'g', -1, 64)...)
-		case Integral:
-			iValue, err = node.GetIntegral()
+		case Integer:
+			iValue, err = node.GetInteger()
 			if err != nil {
 				return nil, err
 			}
 			result = append(result, strconv.FormatInt(iValue, 10)...)
+		case UnsignedInteger:
+			uValue, err = node.GetUnsignedInteger()
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, strconv.FormatUint(uValue, 10)...)
 		case String:
 			sValue, err = node.GetString()
 			if err != nil {
