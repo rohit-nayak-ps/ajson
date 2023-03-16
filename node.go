@@ -10,14 +10,16 @@ import (
 // Node is a main struct, presents any type of JSON node.
 // Available types are:
 //
-// 	const (
-// 		Null NodeType = iota
-// 		Numeric
-// 		String
-// 		Bool
-// 		Array
-// 		Object
-// 	)
+//	const (
+//		Null NodeType = iota
+//		Numeric
+//		String
+//		Bool
+//		Array
+//		Object
+//		Integer
+//		UnsignedInteger
+//	)
 //
 // Every type has its own methods to be called.
 // Every Node contains link to a byte data, parent and children, also calculated type of value, atomic value and internal information.
@@ -38,13 +40,14 @@ type NodeType int32
 
 // Reflections:
 //
-// 	Null    = nil.(interface{})
-// 	Numeric = float64
-// 	String  = string
-// 	Bool    = bool
-// 	Array   = []*Node
-// 	Object  = map[string]*Node
-//
+//	Null    = nil.(interface{})
+//	Numeric = float64
+//	String  = string
+//	Bool    = bool
+//	Array   = []*Node
+//	Object  = map[string]*Node
+//	Integer = int64
+//	UnsignedInteger = uint64
 const (
 	// Null is reflection of nil.(interface{})
 	Null NodeType = iota
@@ -58,6 +61,10 @@ const (
 	Array
 	// Object is reflection of map[string]*Node
 	Object
+	// Integer is reflection of int64
+	Integer
+	// UnsignedInteger is reflection of uint64
+	UnsignedInteger
 )
 
 // NullNode is constructor for Node with Null value
@@ -140,6 +147,28 @@ func ObjectNode(key string, value map[string]*Node) (current *Node) {
 	} else {
 		current.children = make(map[string]*Node)
 	}
+	return
+}
+
+// IntegerNode is constructor for Node with an Integer value
+func IntegerNode(key string, value int64) (current *Node) {
+	current = &Node{
+		_type: Integer,
+		key:   &key,
+		dirty: true,
+	}
+	current.value.Store(value)
+	return
+}
+
+// UnsignedIntegerNode is constructor for Node with an UnsignedInteger value
+func UnsignedIntegerNode(key string, value uint64) (current *Node) {
+	current = &Node{
+		_type: UnsignedInteger,
+		key:   &key,
+		dirty: true,
+	}
+	current.value.Store(value)
 	return
 }
 
@@ -321,11 +350,31 @@ func (n *Node) IsBool() bool {
 	return n._type == Bool
 }
 
+// IsInteger returns true if current node is Integer
+func (n *Node) IsInteger() bool {
+	if n == nil {
+		return false
+	}
+	return n._type == Integer
+}
+
+// IsUnsignedInteger returns true if current node is Integer
+func (n *Node) IsUnsignedInteger() bool {
+	if n == nil {
+		return false
+	}
+	return n._type == UnsignedInteger
+}
+
 // Value is calculating and returns a value of current node.
 //
 // It returns nil, if current node type is Null.
 //
 // It returns float64, if current node type is Numeric.
+//
+// It returns int64, if current node type is Integer.
+//
+// It returns uint64, if current node type is UnsignedInteger.
 //
 // It returns string, if current node type is String.
 //
@@ -355,6 +404,10 @@ func (n *Node) Value() (value interface{}, err error) {
 		return n.GetArray()
 	case Object:
 		return n.GetObject()
+	case Integer:
+		return n.GetInteger()
+	case UnsignedInteger:
+		return n.GetUnsignedInteger()
 	}
 	return nil, errorType()
 }
@@ -398,6 +451,18 @@ func (n *Node) getValue() (value interface{}, err error) {
 				result[key] = child
 			}
 			value = result
+			n.value.Store(value)
+		case Integer:
+			value, err = strconv.ParseInt(string(n.Source()), 10, 64)
+			if err != nil {
+				return
+			}
+			n.value.Store(value)
+		case UnsignedInteger:
+			value, err = strconv.ParseUint(string(n.Source()), 10, 64)
+			if err != nil {
+				return
+			}
 			n.value.Store(value)
 		}
 	}
@@ -510,9 +575,65 @@ func (n *Node) GetObject() (value map[string]*Node, err error) {
 	return value, nil
 }
 
+// GetInteger returns int64, if current type is Integer, else: WrongType error
+func (n *Node) GetInteger() (value int64, err error) {
+	if n == nil {
+		return 0, errorUnparsed()
+	}
+	if n._type != Integer {
+		return value, errorType()
+	}
+	iValue, err := n.getValue()
+	if err != nil {
+		return 0, err
+	}
+	value, ok := iValue.(int64)
+	if !ok {
+		return value, errorType()
+	}
+	return value, nil
+}
+
+// GetUnsignedInteger returns int64, if current type is UnsignedInteger, else: WrongType error
+func (n *Node) GetUnsignedInteger() (value uint64, err error) {
+	if n == nil {
+		return 0, errorUnparsed()
+	}
+	if n._type != UnsignedInteger {
+		return value, errorType()
+	}
+	uValue, err := n.getValue()
+	if err != nil {
+		return 0, err
+	}
+	value, ok := uValue.(uint64)
+	if !ok {
+		return value, errorType()
+	}
+	return value, nil
+}
+
 // MustNull returns nil, if current type is Null, else: panic if error happened
 func (n *Node) MustNull() (value interface{}) {
 	value, err := n.GetNull()
+	if err != nil {
+		panic(err)
+	}
+	return
+}
+
+// MustInteger returns int64, if current type is Integer, else: panic if error happened
+func (n *Node) MustInteger() (value int64) {
+	value, err := n.GetInteger()
+	if err != nil {
+		panic(err)
+	}
+	return
+}
+
+// MustUnsignedInteger returns uint64, if current type is UnsignedInteger, else: panic if error happened
+func (n *Node) MustUnsignedInteger() (value uint64) {
+	value, err := n.GetUnsignedInteger()
 	if err != nil {
 		panic(err)
 	}
@@ -606,6 +727,16 @@ func (n *Node) Unpack() (value interface{}, err error) {
 			}
 		}
 		value = result
+	case Integer:
+		value, err = n.Value()
+		if _, ok := value.(int64); !ok {
+			return nil, errorType()
+		}
+	case UnsignedInteger:
+		value, err = n.Value()
+		if _, ok := value.(uint64); !ok {
+			return nil, errorType()
+		}
 	}
 	return
 }
@@ -705,7 +836,7 @@ func (n *Node) Eq(node *Node) (result bool, err error) {
 				return false, err
 			}
 			result = lnum == rnum
-		case Numeric:
+		case Numeric, Integer, UnsignedInteger:
 			lnum, rnum, err := _floats(n, node)
 			if err != nil {
 				return false, err
@@ -776,7 +907,7 @@ func (n *Node) Le(node *Node) (result bool, err error) {
 	}
 	if n.Type() == node.Type() {
 		switch n.Type() {
-		case Numeric:
+		case Numeric, Integer, UnsignedInteger:
 			lnum, rnum, err := _floats(n, node)
 			if err != nil {
 				return false, err
@@ -802,7 +933,7 @@ func (n *Node) Leq(node *Node) (result bool, err error) {
 	}
 	if n.Type() == node.Type() {
 		switch n.Type() {
-		case Numeric:
+		case Numeric, Integer, UnsignedInteger:
 			lnum, rnum, err := _floats(n, node)
 			if err != nil {
 				return false, err
@@ -828,7 +959,7 @@ func (n *Node) Ge(node *Node) (result bool, err error) {
 	}
 	if n.Type() == node.Type() {
 		switch n.Type() {
-		case Numeric:
+		case Numeric, Integer, UnsignedInteger:
 			lnum, rnum, err := _floats(n, node)
 			if err != nil {
 				return false, err
@@ -854,7 +985,7 @@ func (n *Node) Geq(node *Node) (result bool, err error) {
 	}
 	if n.Type() == node.Type() {
 		switch n.Type() {
-		case Numeric:
+		case Numeric, Integer, UnsignedInteger:
 			lnum, rnum, err := _floats(n, node)
 			if err != nil {
 				return false, err
